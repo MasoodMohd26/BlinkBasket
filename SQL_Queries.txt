@@ -1,0 +1,160 @@
+SELECT customer.customer_id, customer.name, SUM(orderr.total) AS total_amount_spent
+FROM customer 
+JOIN orderr ON customer.customer_id = orderr.customer_id
+GROUP BY customer.customer_id, customer.name;
+
+SELECT c.customer_id, c.name
+FROM customer c
+JOIN subscription s ON c.customer_id = s.customer_id
+WHERE CURDATE() BETWEEN s.start_date AND s.end_date;
+
+SELECT c.customer_id, c.name
+FROM customer c
+JOIN orderr o ON c.customer_id = o.customer_id
+WHERE o.total > 100;
+
+INSERT INTO payment (payment_id, payment_method_id, amount, status, start_time, end_time) VALUES (11, 3, 123.33, 'Pending', UTC_DATE(), NULL);
+
+UPDATE payment
+SET end_time = UTC_DATE()
+WHERE payment_id = 11;
+
+
+SELECT payment_method_id,
+		name, 
+		AVG(amount) as average_amount, 
+        AVG(TIMESTAMPDIFF(SECOND, start_time, end_time)) AS average_length,
+        SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END) / COUNT(*) AS failure_rate,
+        COUNT(*) as total_payments
+FROM payment_method 
+NATURAL JOIN payment
+GROUP BY payment_method_id, name
+ORDER BY name;
+
+SELECT type, 
+	AVG(amount) AS average_amount, 
+    AVG(TIMESTAMPDIFF(SECOND, start_time, end_time)) AS average_length,
+    SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END) / COUNT(CASE WHEN status <> 'Pending' THEN status END) AS failure_rate,
+	COUNT(*) as total_payments
+FROM payment_method 
+NATURAL JOIN payment
+GROUP BY type
+ORDER BY type;
+
+UPDATE orderr o JOIN (
+    SELECT SUM(
+        CASE
+            WHEN type = 'Flat' THEN c.amount
+            WHEN type = 'Percentage' THEN c.amount/100 * o.subtotal
+        END
+    ) AS amount_saved
+    FROM orderr o JOIN coupon c
+    WHERE o.order_id = 1 AND coupon_id IN (1, 2) AND c.valid = true
+) t JOIN coupon c
+SET o.amount_saved = t.amount_saved,
+    o.total = o.subtotal + o.delivery_charge - t.amount_saved,
+    c.valid = false
+WHERE o.order_id = 1 AND c.coupon_id IN (1, 2) AND t.amount_saved <= o.subtotal + o.delivery_charge;
+
+SELECT availability
+FROM item
+WHERE product_name = 'Milk';
+
+UPDATE item
+SET availability = False
+WHERE product_name = 'Milk';
+
+SELECT v.vendor_id, v.name AS vendor_name, v.rating AS vendor_rating, v.contact AS vendor_contact
+FROM item i
+JOIN vendor v ON i.vendor_id = v.vendor_id
+WHERE i.availability = FALSE;
+
+
+SELECT vendor.vendor_id, 
+       vendor.rating, 
+       item.item_id, 
+       item.product_name, 
+       ABS(vendor.location - 2000008) AS pincode_difference
+FROM vendor
+JOIN item ON vendor.vendor_id = item.vendor_id
+WHERE vendor.rating > 4
+ORDER BY pincode_difference ASC;
+
+SELECT *
+FROM item
+INNER JOIN vendor ON vendor.vendor_id = item.vendor_id
+WHERE vendor.vendor_id = (
+	 Select vendor.vendor_id
+	 FROM vendor
+	 ORDER BY vendor.rating DESC
+	 LIMIT 1
+);
+
+SELECT item.product_name
+FROM vendor
+INNER JOIN item ON vendor.vendor_id = item.vendor_id AND vendor.vendor_id = 1;
+
+SELECT vendor.vendor_id, 
+       vendor.rating, 
+       item.item_id, 
+       item.product_name, 
+       ABS(vendor.location - 2000008) AS pincode_difference
+FROM vendor
+JOIN item ON vendor.vendor_id = item.vendor_id
+WHERE vendor.rating > 4
+ORDER BY pincode_difference ASC;
+
+SELECT *
+FROM item
+INNER JOIN vendor ON vendor.vendor_id = item.vendor_id
+WHERE vendor.vendor_id = (
+	 Select vendor.vendor_id
+	 FROM vendor
+	 ORDER BY vendor.rating DESC
+	 LIMIT 1
+);
+
+SELECT item.product_name
+FROM vendor
+inner JOIN item ON vendor.vendor_id = item.vendor_id and vendor.vendor_id = 1;
+
+SELECT vendor.rating, count(*) 
+FROM vendor
+GROUP BY vendor.rating
+having vendor.rating>4.5
+order by rating DESC;
+
+-- Constraints showcase
+-- customer_phone_valid
+INSERT INTO profile (profile_id, phone_no, address) VALUES
+(111, '123', '2000012');
+
+-- vendor_rating_valid
+INSERT INTO vendor (vendor_id, name, rating, contact, gst_number, location)
+VALUES 
+(11, 'UVW Solutions', -3, '0123456789', 'GST345012', '2000010');
+
+-- Inventory FK constraint
+INSERT INTO inventory (inventory_id, manager_employee_id, delivery_partner_id, location)
+VALUES 
+(11, 999, 1, '2000001');
+
+--  Payment end time consistency constraint
+INSERT INTO payment (payment_id, payment_method_id, amount, status, start_time, end_time)
+VALUES 
+(11, 1, 100.00, 'Completed', '2024-02-10 08:00:00', '2024-02-10 07:00:00');
+
+-- Payment completion record constraint
+INSERT INTO payment (payment_id, payment_method_id, amount, status, start_time, end_time)
+VALUES 
+(12, 1, 100.00, 'Completed', '2024-02-10 08:00:00', NULL);
+
+-- Order total consistency constraint
+INSERT INTO orderr (order_id, payment_id, cart_id, customer_id, created_time, status, instructions, subtotal, delivery_charge, amount_saved, total)
+VALUES 
+(11, NULL, 1, 1, '2024-02-10 08:00:00', 'Pending', 'Handle with care', 100.00, 10.00, 60.00, 110.00);
+
+-- Coupon usage consistent
+INSERT INTO coupon (coupon_id, order_id, type, code, company, description, amount, valid)
+VALUES 
+(11, NULL, 'Flat', 'SAVE33', 'Save More', 'Save $33', 33.00, FALSE);
